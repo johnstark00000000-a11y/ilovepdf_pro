@@ -1,7 +1,12 @@
 import io
+import zipfile
 from django.shortcuts import render
 from django.http import HttpResponse, Http404, JsonResponse
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from PIL import Image
 
 TOOLS = {
     "merge": {"title": "Merge PDF", "icon": "fa-object-group", "desc": "Combine multiple PDFs into one document seamlessly.", "cat": "organize"},
@@ -44,23 +49,31 @@ TOOLS = {
     "pdf-to-markdown": {"title": "PDF to Markdown", "icon": "fa-hashtag", "desc": "Extract formatted content cleanly into Markdown syntax.", "cat": "intelligence"}
 }
 
+
 def home(request):
     return render(request, 'index.html', {'tools': TOOLS})
+
 
 def tool_detail(request, tool_name):
     if tool_name not in TOOLS:
         raise Http404("Requested tool configuration does not exist.")
     return render(request, 'tool.html', {'tool': TOOLS[tool_name], 'tool_name': tool_name})
 
+
 def process_pdf(request, tool_name):
     if tool_name not in TOOLS:
         return JsonResponse({'error': 'Invalid tool specified'}, status=400)
-        
-    if request.method == 'POST':
-        files = request.FILES.getlist('pdf_files')
-        
-        # Real backend execution for core tools
-        if tool_name == 'merge' and files:
+
+    if request.method != 'POST':
+        return render(request, 'tool.html', {'tool': TOOLS[tool_name], 'tool_name': tool_name})
+
+    files = request.FILES.getlist('pdf_files')
+    if not files:
+        return HttpResponse("Please upload at least one file.", status=400)
+
+    try:
+        # ========== MERGE ==========
+        if tool_name == 'merge':
             merger = PdfMerger()
             for f in files:
                 merger.append(f)
@@ -69,10 +82,11 @@ def process_pdf(request, tool_name):
             merger.close()
             output.seek(0)
             response = HttpResponse(output.read(), content_type='application/pdf')
-            response['Content-Disposition'] = 'attachment; filename="merged_document.pdf"'
+            response['Content-Disposition'] = 'attachment; filename="merged.pdf"'
             return response
-            
-        elif tool_name == 'rotate' and files:
+
+        # ========== ROTATE ==========
+        elif tool_name == 'rotate':
             reader = PdfReader(files[0])
             writer = PdfWriter()
             for page in reader.pages:
@@ -82,10 +96,183 @@ def process_pdf(request, tool_name):
             writer.write(output)
             output.seek(0)
             response = HttpResponse(output.read(), content_type='application/pdf')
-            response['Content-Disposition'] = 'attachment; filename="rotated_document.pdf"'
+            response['Content-Disposition'] = 'attachment; filename="rotated.pdf"'
             return response
 
-        # Universal fallback response for remaining modular features
-        return HttpResponse(f"Successfully executed operation for: {TOOLS[tool_name]['title']}. Download processing stream ready.", content_type="text/plain")
+        # ========== SPLIT (each page as separate PDF inside ZIP) ==========
+        elif tool_name == 'split':
+            reader = PdfReader(files[0])
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+                for i, page in enumerate(reader.pages):
+                    writer = PdfWriter()
+                    writer.add_page(page)
+                    page_buffer = io.BytesIO()
+                    writer.write(page_buffer)
+                    page_buffer.seek(0)
+                    zip_file.writestr(f"page_{i+1}.pdf", page_buffer.read())
+            zip_buffer.seek(0)
+            response = HttpResponse(zip_buffer.read(), content_type='application/zip')
+            response['Content-Disposition'] = 'attachment; filename="split_pages.zip"'
+            return response
 
-    return render(request, 'tool.html', {'tool': TOOLS[tool_name], 'tool_name': tool_name})
+        # ========== EXTRACT PAGES (first half as example) ==========
+        elif tool_name == 'extract-pages':
+            reader = PdfReader(files[0])
+            writer = PdfWriter()
+            total = len(reader.pages)
+            # Extract first half of pages
+            for i in range(max(1, total // 2)):
+                writer.add_page(reader.pages[i])
+            output = io.BytesIO()
+            writer.write(output)
+            output.seek(0)
+            response = HttpResponse(output.read(), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="extracted_pages.pdf"'
+            return response
+
+        # ========== REMOVE PAGES (remove last page as example) ==========
+        elif tool_name == 'remove-pages':
+            reader = PdfReader(files[0])
+            writer = PdfWriter()
+            if len(reader.pages) <= 1:
+                return HttpResponse("PDF has only 1 page. Cannot remove.", status=400)
+            for i in range(len(reader.pages) - 1):  # remove last page
+                writer.add_page(reader.pages[i])
+            output = io.BytesIO()
+            writer.write(output)
+            output.seek(0)
+            response = HttpResponse(output.read(), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="pages_removed.pdf"'
+            return response
+
+        # ========== ORGANIZE (reverse order) ==========
+        elif tool_name == 'organize':
+            reader = PdfReader(files[0])
+            writer = PdfWriter()
+            for page in reversed(reader.pages):
+                writer.add_page(page)
+            output = io.BytesIO()
+            writer.write(output)
+            output.seek(0)
+            response = HttpResponse(output.read(), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="organized.pdf"'
+            return response
+
+        # ========== PROTECT (password = 1234) ==========
+        elif tool_name == 'protect':
+            reader = PdfReader(files[0])
+            writer = PdfWriter()
+            for page in reader.pages:
+                writer.add_page(page)
+            writer.encrypt("1234")  # default password
+            output = io.BytesIO()
+            writer.write(output)
+            output.seek(0)
+            response = HttpResponse(output.read(), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="protected.pdf"'
+            return response
+
+        # ========== UNLOCK (try empty password) ==========
+        elif tool_name == 'unlock':
+            try:
+                reader = PdfReader(files[0])
+                if reader.is_encrypted:
+                    reader.decrypt("")  # try empty password
+                writer = PdfWriter()
+                for page in reader.pages:
+                    writer.add_page(page)
+                output = io.BytesIO()
+                writer.write(output)
+                output.seek(0)
+                response = HttpResponse(output.read(), content_type='application/pdf')
+                response['Content-Disposition'] = 'attachment; filename="unlocked.pdf"'
+                return response
+            except Exception:
+                return HttpResponse("Could not unlock. Password protected with unknown password.", status=400)
+
+        # ========== ADD PAGE NUMBERS ==========
+        elif tool_name == 'add-page-numbers':
+            reader = PdfReader(files[0])
+            writer = PdfWriter()
+            for i, page in enumerate(reader.pages):
+                packet = io.BytesIO()
+                can = canvas.Canvas(packet, pagesize=letter)
+                can.setFont("Helvetica", 10)
+                can.drawCentredString(letter[0]/2, 30, f"Page {i+1}")
+                can.save()
+                packet.seek(0)
+                watermark = PdfReader(packet)
+                page.merge_page(watermark.pages[0])
+                writer.add_page(page)
+            output = io.BytesIO()
+            writer.write(output)
+            output.seek(0)
+            response = HttpResponse(output.read(), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="numbered.pdf"'
+            return response
+
+        # ========== ADD WATERMARK ==========
+        elif tool_name == 'add-watermark':
+            reader = PdfReader(files[0])
+            writer = PdfWriter()
+            for page in reader.pages:
+                packet = io.BytesIO()
+                can = canvas.Canvas(packet, pagesize=letter)
+                can.setFont("Helvetica", 40)
+                can.setFillColorRGB(0.6, 0.6, 0.6, alpha=0.3)
+                can.saveState()
+                can.translate(300, 400)
+                can.rotate(45)
+                can.drawCentredString(0, 0, "CONFIDENTIAL")
+                can.restoreState()
+                can.save()
+                packet.seek(0)
+                watermark = PdfReader(packet)
+                page.merge_page(watermark.pages[0])
+                writer.add_page(page)
+            output = io.BytesIO()
+            writer.write(output)
+            output.seek(0)
+            response = HttpResponse(output.read(), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="watermarked.pdf"'
+            return response
+
+        # ========== JPG TO PDF ==========
+        elif tool_name == 'jpg-to-pdf':
+            images = []
+            for f in files:
+                img = Image.open(f).convert("RGB")
+                images.append(img)
+            if not images:
+                return HttpResponse("No valid images found.", status=400)
+            output = io.BytesIO()
+            images[0].save(output, format="PDF", save_all=True, append_images=images[1:])
+            output.seek(0)
+            response = HttpResponse(output.read(), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="images_to_pdf.pdf"'
+            return response
+
+        # ========== BASIC COMPRESS ==========
+        elif tool_name == 'compress':
+            reader = PdfReader(files[0])
+            writer = PdfWriter()
+            for page in reader.pages:
+                page.compress_content_streams()
+                writer.add_page(page)
+            output = io.BytesIO()
+            writer.write(output)
+            output.seek(0)
+            response = HttpResponse(output.read(), content_type='application/pdf')
+            response['Content-Disposition'] = 'attachment; filename="compressed.pdf"'
+            return response
+
+        # Baaki tools ke liye message
+        else:
+            return HttpResponse(
+                f"Tool '{TOOLS[tool_name]['title']}' is coming soon. Currently working tools: Merge, Split, Rotate, Protect, Watermark, Page Numbers, JPG to PDF, Compress.",
+                content_type="text/plain"
+            )
+
+    except Exception as e:
+        return HttpResponse(f"Error processing file: {str(e)}", status=500)
