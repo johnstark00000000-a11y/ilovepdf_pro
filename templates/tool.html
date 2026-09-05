@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ tool.title }} - Free Online PDF Tool{% endblock %}
+
+{% block content %}
+<div class="tool-workspace">
+    <h2><i class="fa-solid {{ tool.icon }}"></i> {{ tool.title }}</h2>
+    <p>{{ tool.desc }}</p>
+
+    <form action="/process/{{ tool_name }}/" method="POST" enctype="multipart/form-data" class="upload-box">
+        {% csrf_token %}
+        <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+        <h3>Select PDF files</h3>
+        <p>Drag and drop your document files anywhere inside this area</p>
+        <input type="file" name="pdf_files" multiple required class="file-input">
+        <br><br>
+        <button type="submit" class="btn-primary">Execute {{ tool.title }}</button>
+    </form>
+</div>
+{% endblock %}
