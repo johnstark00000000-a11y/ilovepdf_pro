@@ -1,0 +1,10 @@
+Django>=4.2,<5.0
+gunicorn
+whitenoise
+PyPDF2
+pdf2image
+pdfplumber
+reportlab
+python-docx
+pdf2docx
+Pillow
