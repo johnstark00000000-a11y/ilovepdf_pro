@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PDF Master - Free Online PDF Tools & Converter Suite{% endblock %}</title>
+    
+    <meta name="description" content="Every utility tool you need to manipulate, merge, split, compress, convert, and secure PDF files 100% free online in your browser.">
+    <meta name="keywords" content="PDF converter, merge pdf, compress pdf, split pdf, pdf to word, unlock pdf, edit pdf online">
+    <meta name="robots" content="index, follow">
+    <meta property="og:title" content="PDF Master - Free Online PDF Tools">
+    <meta property="og:description" content="All-in-one PDF platform equipped with lightning-fast processing and Light, Dark, & Neon modes.">
+    <meta property="og:type" content="website">
+
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header class="navbar">
+        <a href="/" class="logo"><i class="fa-solid fa-file-pdf"></i> <span>PDF Master</span></a>
+        
+        <nav class="nav-links">
+            <a href="/#organize">Organize</a>
+            <a href="/#optimize">Optimize</a>
+            <a href="/#convert">Convert</a>
+            <a href="/#security">Security</a>
+        </nav>
+
+        <div class="theme-switcher">
+            <button id="theme-btn" onclick="toggleTheme()"><i class="fa-solid fa-moon"></i> Light Mode</button>
+        </div>
+    </header>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; 2026 PDF Master Platform. All operational tools are safe, secure, and free.</p>
+    </footer>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
