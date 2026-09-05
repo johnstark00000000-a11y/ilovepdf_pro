@@ -9,12 +9,19 @@
 
     <form action="/process/{{ tool_name }}/" method="POST" enctype="multipart/form-data" class="upload-box">
         {% csrf_token %}
+        
         <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
-        <h3>Select PDF files</h3>
-        <p>Drag and drop your document files anywhere inside this area</p>
-        <input type="file" name="pdf_files" multiple required class="file-input">
-        <br><br>
-        <button type="submit" class="btn-primary">Execute {{ tool.title }}</button>
+        <h3>Select files</h3>
+        <p>Click below to choose your files</p>
+        
+        <!-- Mobile friendly file input -->
+        <input type="file" name="pdf_files" multiple required 
+               style="display: block; margin: 20px auto; padding: 12px; width: 90%; max-width: 300px; font-size: 16px;">
+        
+        <br>
+        <button type="submit" class="btn-primary" style="margin-top: 15px; padding: 14px 30px; font-size: 16px;">
+            Execute {{ tool.title }}
+        </button>
     </form>
 </div>
 {% endblock %}
